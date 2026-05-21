@@ -1,20 +1,17 @@
 import { stripe } from '../../../lib/stripe'
 import { supabaseAdmin } from '../../../lib/supabase'
-import { buffer } from 'micro'
+import { NextResponse } from 'next/server'
 
-export const config = { api: { bodyParser: false } }
-
-export default async function handler(req, res) {
-  if (req.method !== 'POST') return res.status(405).end()
-
-  const buf = await buffer(req)
-  const sig = req.headers['stripe-signature']
+export async function POST(req) {
+  const buf = await req.arrayBuffer()
+  const rawBody = Buffer.from(buf)
+  const sig = req.headers.get('stripe-signature')
 
   let event
   try {
-    event = stripe.webhooks.constructEvent(buf, sig, process.env.STRIPE_WEBHOOK_SECRET)
+    event = stripe.webhooks.constructEvent(rawBody, sig, process.env.STRIPE_WEBHOOK_SECRET)
   } catch (err) {
-    return res.status(400).send(`Webhook error: ${err.message}`)
+    return NextResponse.json({ error: `Webhook error: ${err.message}` }, { status: 400 })
   }
 
   const session = event.data.object
@@ -48,5 +45,5 @@ export default async function handler(req, res) {
     }
   }
 
-  res.status(200).json({ received: true })
+  return NextResponse.json({ received: true })
 }
